@@ -9,28 +9,41 @@
 <body>
   <header>
     <h1>🐍 Sneck — Head-Controlled Snake</h1>
-    <p>通过摄像头检测头部移动来控制贪吃蛇方向，抬头才是正事。</p>
+    <p>通过摄像头检测头部移动（使用Face Mesh技术，纯前端实现，无后端交互）来控制贪吃蛇方向，抬头才是正事。</p>
   </header>
 
   <main>
     <div class="left">
       <canvas id="gameCanvas" width="600" height="600"></canvas>
-      <div class="hud">
-        <div>Score: <span id="score">0</span></div>
-        <div>High: <span id="highScore">0</span></div>
+
+      <div class="hud controls-row">
+        <div class="scores">
+          <div class="score-item">Score: <span id="score">0</span></div>
+          <div class="score-item">High: <span id="highScore">0</span></div>
+        </div>
+
+        <div class="left-controls">
+          <button id="startBtn">开始游戏</button>
+          <button id="stopBtn" disabled>停止游戏</button>
+        </div>
       </div>
     </div> 
 
     <aside class="right">
-      <h3>说明</h3>
-      <p>通过 Face Mesh 计算面部中心与校准位置的偏移，映射成上下左右方向。</p>
-
-      <div class="video-preview">
+        <div class="video-preview">
         <video id="video" autoplay playsinline muted></video>
         <div class="video-controls">
           <label><input id="mirrorVideo" type="checkbox" checked/> 镜像预览</label>
         </div>
       </div>
+      <h3>提示</h3>
+        <ul>
+          <li>保持正坐、平视，轻微头部移动即可控制方向。</li>
+          <li>先点击“校准”，保持自然姿态 1-2 秒。</li>
+          <li>关闭页面或停止摄像头后不会上传任何数据。</li>
+        </ul>
+
+
 
       <div class="sliders">
         <label class="slider-row">灵敏度： <input id="sensitivity" type="range" min="0.5" max="3" step="0.1" value="1"> <span id="sensitivityVal">1.0</span></label>
@@ -39,26 +52,17 @@
 
       <div class="controls">
         <button id="calibrateBtn">校准（自然姿态）</button>
-        <button id="startBtn">开始游戏</button>
-        <button id="stopBtn" disabled>停止</button>
       </div>
 
       <div class="data-actions">
-        <button id="exportBtn">导出数据（JSON）</button>
+        <button id="exportBtn">导出成绩</button>
         <label class="import">
-          导入数据
+          导入成绩
           <input id="importInput" type="file" accept="application/json" />
         </label>
       </div>
 
-      <section class="notes">
-        <h3>提示</h3>
-        <ul>
-          <li>保持正坐、平视，轻微头部移动即可控制方向。</li>
-          <li>先点击“校准”，保持自然姿态 1-2 秒。</li>
-          <li>关闭页面或停止摄像头后不会上传任何数据。</li>
-        </ul>
-      </section>
+
 
       <h4>历史记录</h4>
       <ul id="historyList"></ul>

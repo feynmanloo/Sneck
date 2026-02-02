@@ -6,7 +6,8 @@ export class Game {
     this.onScoreUpdate = onScoreUpdate;
 
     this.tileCount = 20; // grid size (tiles per row/col)
-    this.tileSize = this.canvas.width / this.tileCount;
+    // tileSize will be computed dynamically from canvas size to allow smaller backing resolution
+    this.tileSize = 0;
 
     this.speed = 120; // ms per tick
     this.interval = null;
@@ -82,11 +83,9 @@ export class Game {
     if (this.direction === 'left') head.x -= 1;
     if (this.direction === 'right') head.x += 1;
 
-    // wall collision
-    if (head.x < 0 || head.x >= this.tileCount || head.y < 0 || head.y >= this.tileCount) {
-      this._gameOver();
-      return;
-    }
+    // wrap-around at borders instead of game over
+    head.x = (head.x + this.tileCount) % this.tileCount;
+    head.y = (head.y + this.tileCount) % this.tileCount;
 
     // self collision
     if (this.snake.some(s => s.x === head.x && s.y === head.y)) {
@@ -132,15 +131,16 @@ export class Game {
   }
 
   draw() {
+    // recompute tileSize dynamically in case canvas backing size changed
+    this.tileSize = this.canvas.width / this.tileCount;
+
     const ctx = this.ctx;
+    // clear
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
     // background
     ctx.fillStyle = '#071024';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-    // grid (subtle)
-    // this.drawGrid();
 
     // food
     ctx.fillStyle = '#ff6b6b';

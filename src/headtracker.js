@@ -1,5 +1,5 @@
 export class HeadTracker {
-  constructor(videoEl, onDirection = () => {}) {
+  constructor(videoEl, onDirection = () => {}, options = {}) {
     this.video = videoEl;
     this.onDirection = onDirection;
     this.faceMesh = null;
@@ -7,42 +7,72 @@ export class HeadTracker {
     this.neutral = null; // {x,y}
     this._calibrating = false;
     this._calibFrames = [];
-    this._frameCountForCalib = 25;
+    this._frameCountForCalib = options.calibFrames || 15;
 
     // tuning
-    this.deadZone = 0.035; // normalized units (~3.5% of frame)
-    this.sensitivity = 1.0; // multiplier for responsiveness
-    this.mirrored = false; // whether horizontal input is mirrored
+    this.deadZone = typeof options.deadZone === 'number' ? options.deadZone : 0.035; // normalized units (~3.5% of frame)
+    this.sensitivity = typeof options.sensitivity === 'number' ? options.sensitivity : 1.0; // multiplier for responsiveness
+    this.mirrored = !!options.mirrored; // whether horizontal input is mirrored
+
+    // performance / input sizing
+    this.maxFPS = options.maxFPS || 10; // throttle processing to this FPS
+    this.inputWidth = options.width || 320;
+    this.inputHeight = options.height || 240;
+
+    this._lastProcessTime = 0;
+    this._minFrameInterval = 1000 / this.maxFPS;
+    this._paused = false; // paused when tab hidden
+
+    this._visibilityHandler = () => {
+      this._paused = document.hidden;
+    };
   }
 
   setSensitivity(v) { this.sensitivity = Number(v) || 1.0; }
   setDeadZone(v) { this.deadZone = Number(v) || 0.035; }
   setMirror(flag) { this.mirrored = !!flag; }
 
+  setMaxFPS(fps) {
+    this.maxFPS = Number(fps) || 10;
+    this._minFrameInterval = 1000 / this.maxFPS;
+  }
+
   async start() {
-    // Setup FaceMesh
+    if (this.camera) return; // already started
+
+    // Setup FaceMesh (use lighter options by default)
     this.faceMesh = new FaceMesh({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
     });
     this.faceMesh.setOptions({
       maxNumFaces: 1,
-      refineLandmarks: true,
+      refineLandmarks: false, // disable heavy refine by default to save resources
       minDetectionConfidence: 0.5,
       minTrackingConfidence: 0.5
     });
 
     this.faceMesh.onResults(this._onResults.bind(this));
 
+    // Listen to visibility change to pause processing when tab is hidden
+    document.addEventListener('visibilitychange', this._visibilityHandler);
+
     this.camera = new Camera(this.video, {
       onFrame: async () => {
         try {
+          if (this._paused) return; // skip processing when hidden
+          const now = performance.now();
+          const interval = this._minFrameInterval;
+          // if calibrating, allow more frequent sampling
+          const allowed = this._calibrating ? 1000 / Math.max(this.maxFPS, 15) : interval;
+          if (now - this._lastProcessTime < allowed) return;
+          this._lastProcessTime = now;
           await this.faceMesh.send({ image: this.video });
         } catch (err) {
           // ignore camera/frame errors
         }
       },
-      width: 640,
-      height: 480
+      width: this.inputWidth,
+      height: this.inputHeight
     });
 
     await this.camera.start();
@@ -51,7 +81,9 @@ export class HeadTracker {
   stop() {
     if (this.camera) {
       try { this.camera.stop(); } catch (e) {}
+      this.camera = null;
     }
+    try { document.removeEventListener('visibilitychange', this._visibilityHandler); } catch (e) {}
   }
 
   async calibrate() {

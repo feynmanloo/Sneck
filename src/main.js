@@ -28,6 +28,12 @@ function refreshUI() {
 async function init() {
   refreshUI();
 
+  // Reduce canvas backing resolution to save GPU work but keep CSS size
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  const baseSize = 360; // logical backing size (smaller than CSS size)
+  canvas.width = Math.floor(baseSize * dpr);
+  canvas.height = Math.floor(baseSize * dpr);
+
   game = new Game(canvas, ({score}) => {
     // game over
     Storage.pushHistory(score);
@@ -35,21 +41,24 @@ async function init() {
     refreshUI();
     startBtn.disabled = false;
     stopBtn.disabled = true;
+    // stop tracking to save resources
+    if (tracker) tracker.stop();
     alert(`游戏结束，得分：${score}`);
   }, ({score}) => {
     scoreEl.textContent = score;
   });
 
+  // create tracker (will start camera now to show preview and allow calibration)
   tracker = new HeadTracker(video, (dir) => {
     // receive 'up'|'down'|'left'|'right' or null
     lastDirection = dir;
-  });
+  }, { maxFPS: 10, width: 320, height: 240, refineLandmarks: false });
 
   try {
     await tracker.start();
   } catch (err) {
-    console.error('摄像头启动失败', err);
-    alert('无法访问摄像头：' + err.message);
+    console.warn('摄像头启动（预览）失败：', err);
+    // don't block page; keep UI functional for users without camera
   }
 
   // UI: sensitivity / dead-zone / mirror controls
@@ -93,20 +102,36 @@ async function init() {
   calibrateBtn.addEventListener('click', async () => {
     calibrateBtn.disabled = true;
     calibrateBtn.textContent = '校准中...';
-    await tracker.calibrate();
-    calibrateBtn.textContent = '校准（自然姿态）';
-    calibrateBtn.disabled = false;
-    alert('校准完成');
+    try {
+      if (tracker && typeof tracker.start === 'function') await tracker.start();
+      await tracker.calibrate();
+      alert('校准完成');
+    } catch (err) {
+      console.error('校准失败', err);
+      alert('校准失败：' + (err && err.message ? err.message : err));
+    } finally {
+      calibrateBtn.textContent = '校准（自然姿态）';
+      calibrateBtn.disabled = false;
+    }
   });
 
-  startBtn.addEventListener('click', () => {
-    game.start();
+  startBtn.addEventListener('click', async () => {
     startBtn.disabled = true;
-    stopBtn.disabled = false;
+    try {
+      if (tracker && typeof tracker.start === 'function') await tracker.start();
+      game.start();
+      stopBtn.disabled = false;
+    } catch (err) {
+      console.error('启动摄像头或游戏失败', err);
+      alert('启动失败：' + (err && err.message ? err.message : err));
+      startBtn.disabled = false;
+    }
   });
 
   stopBtn.addEventListener('click', () => {
     game.stop();
+    // optionally stop tracker to save resources when user stops
+    try { if (tracker && typeof tracker.stop === 'function') tracker.stop(); } catch (e) { /* ignore */ }
     startBtn.disabled = false;
     stopBtn.disabled = true;
   });

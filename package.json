@@ -1,0 +1,10 @@
+{
+  "name": "sneck",
+  "version": "0.1.0",
+  "description": "Head-controlled snake game",
+  "scripts": {
+    "start": "python -m http.server 8000",
+    "serve": "python -m http.server 8000"
+  },
+  "license": "MIT"
+}
